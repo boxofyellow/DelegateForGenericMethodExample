@@ -2,7 +2,7 @@
 
 public interface I1
 {
-    // Any attempt to create a delegate for these generic method (or any method that implements this) will fail
+    // Any attempt to create a delegate for these virtual generic method will fail
     // All the others are fine
     public Tout GenericFoo<Tin, Tout>(Tin input);
 
@@ -17,6 +17,7 @@ public interface I1
 
 public class C1
 {
+    // We also se no problem when created delegates for non virtual methods
     public Tout GenericFoo<Tin, Tout>(Tin input) => default!;
     public int NonGenericFoo(string input) => default;
 }
@@ -36,6 +37,12 @@ public class HiddenI1 : I1
     int I1.NonGenericFoo(string input) => default;
 }
 
+public class VirtualClass
+{
+    public virtual Tout GenericFoo<Tin, Tout>(Tin input) => default!;
+    public virtual int NonGenericFoo(string input) => default;
+}
+
 /*
     Delegates for NonGenericFoo (and GenericFoo<string, int>)
 */
@@ -44,6 +51,7 @@ public delegate int InterfaceDelegate(I1 i1, string input);
 public delegate int ClassDelegate(C1 c1, string input);
 public delegate int InterfaceImplementationDelegate(ImplementationI1 i1, string input);
 public delegate int InterfaceHiddenDelegate(HiddenI1 i1, string input);
+public delegate int VirtualDelegate(VirtualClass vc, string input);
 
 /*
     Delegates for Bar, Baz and Qux
@@ -73,11 +81,11 @@ public class Program
 
         var genericMethod = targetType.GetMethod(name)!;
 
-        Console.WriteLine($"Open Generic Method: {genericMethod} declared on {genericMethod.DeclaringType}");
+        Console.WriteLine($"Open Generic Method: {genericMethod} declared on {genericMethod.DeclaringType} is virtual {genericMethod.IsVirtual}");
 
         // Now Close the method we found using the so that we can create a delegate for that
         var method = genericMethod.MakeGenericMethod(typeArguments);
-        Console.WriteLine($"Closed Generic Method: {method} declared on {method.DeclaringType}");
+        Console.WriteLine($"Closed Generic Method: {method} declared on {method.DeclaringType} is virtual {method.IsVirtual}");
 
         Console.WriteLine("Creating....");
 
@@ -106,7 +114,7 @@ public class Program
         Console.WriteLine($"Target Type: {targetType}");
 
         var method = targetType.GetMethod(name)!;
-        Console.WriteLine($"Method: {method} declared on {method.DeclaringType}");
+        Console.WriteLine($"Method: {method} declared on {method.DeclaringType} is virtual {method.IsVirtual}");
 
         Console.WriteLine("Creating....");
 
@@ -132,6 +140,7 @@ public class Program
         CreateDelegateNonGenericMethod<InterfaceImplementationDelegate>(nonGenericName);
         CreateDelegateForClosedGenericMethod<InterfaceHiddenDelegate>(genericName, typeof(string), typeof(int));
         CreateDelegateNonGenericMethod<InterfaceHiddenDelegate>(nonGenericName);
+        CreateDelegateNonGenericMethod<VirtualDelegate>(nonGenericName);
 
         try
         {
@@ -139,8 +148,8 @@ public class Program
             Created Instance of InterfaceDelegate for GenericFoo
             Type Arguments: System.String, System.Int32
             Target Type: I1
-            Open Generic Method: Tout GenericFoo[Tin,Tout](Tin) declared on I1
-            Closed Generic Method: Int32 GenericFoo[String,Int32](System.String) declared on I1
+            Open Generic Method: Tout GenericFoo[Tin,Tout](Tin) declared on I1 is virtual True
+            Closed Generic Method: Int32 GenericFoo[String,Int32](System.String) declared on I1 is virtual True
             Creating....
             System.NotSupportedException: Specified method is not supported.
                 at System.Delegate.BindToMethodInfo(Object target, IRuntimeMethodInfo method, RuntimeType methodType, DelegateBindingFlags flags)
@@ -164,8 +173,8 @@ public class Program
             Created Instance of InterfaceImplementationDelegate for GenericFoo
             Type Arguments: System.String, System.Int32
             Target Type: ImplementationI1
-            Open Generic Method: Tout GenericFoo[Tin,Tout](Tin) declared on ImplementationI1
-            Closed Generic Method: Int32 GenericFoo[String,Int32](System.String) declared on ImplementationI1
+            Open Generic Method: Tout GenericFoo[Tin,Tout](Tin) declared on ImplementationI1 is virtual True
+            Closed Generic Method: Int32 GenericFoo[String,Int32](System.String) declared on ImplementationI1 is virtual True
             Creating....
             System.NotSupportedException: Specified method is not supported.
                 at System.Delegate.BindToMethodInfo(Object target, IRuntimeMethodInfo method, RuntimeType methodType, DelegateBindingFlags flags)
@@ -185,12 +194,36 @@ public class Program
         try
         {
             /*
+            Created Instance of VirtualDelegate for GenericFoo
+            Type Arguments: System.String, System.Int32
+            Target Type: VirtualClass
+            Open Generic Method: Tout GenericFoo[Tin,Tout](Tin) declared on VirtualClass is virtual True
+            Closed Generic Method: Int32 GenericFoo[String,Int32](System.String) declared on VirtualClass is virtual True
+            Creating....
+            System.NotSupportedException: Specified method is not supported.
+                at System.Delegate.BindToMethodInfo(Object target, IRuntimeMethodInfo method, RuntimeType methodType, DelegateBindingFlags flags)
+                at System.Delegate.CreateDelegateInternal(RuntimeType rtType, RuntimeMethodInfo rtMethod, Object firstArgument, DelegateBindingFlags flags)
+                at System.Reflection.RuntimeMethodInfo.CreateDelegateInternal(Type delegateType, Object firstArgument, DelegateBindingFlags bindingFlags)
+                at System.Reflection.MethodInfo.CreateDelegate[T]()
+                at Program.CreateDelegateForClosedGenericMethod[D](String name, Type[] typeArguments)
+                at Program.Main()
+            */
+            CreateDelegateForClosedGenericMethod<VirtualDelegate>(genericName, typeof(string), typeof(int));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+
+        try
+        {
+            /*
             This will throw
             Created Instance of BarDelegate`1[System.Int32] for GenericBar
             Type Arguments: System.Int32
             Target Type: I1
-            Open Generic Method: Void GenericBar[X]() declared on I1
-            Closed Generic Method: Void GenericBar[Int32]() declared on I1
+            Open Generic Method: Void GenericBar[X]() declared on I1 is virtual True
+            Closed Generic Method: Void GenericBar[Int32]() declared on I1 is virtual True
             Creating....
             System.NotSupportedException: Specified method is not supported.
                 at System.Delegate.BindToMethodInfo(Object target, IRuntimeMethodInfo method, RuntimeType methodType, DelegateBindingFlags flags)
@@ -210,11 +243,12 @@ public class Program
         try
         {
             /*
+            This will throw
             Created Instance of BazDelegate`1[System.Int32] for GenericBaz
             Type Arguments: System.Int32
             Target Type: I1
-            Open Generic Method: X GenericBaz[X]() declared on I1
-            Closed Generic Method: Int32 GenericBaz[Int32]() declared on I1
+            Open Generic Method: X GenericBaz[X]() declared on I1 is virtual True
+            Closed Generic Method: Int32 GenericBaz[Int32]() declared on I1 is virtual True
             Creating....
             System.NotSupportedException: Specified method is not supported.
                 at System.Delegate.BindToMethodInfo(Object target, IRuntimeMethodInfo method, RuntimeType methodType, DelegateBindingFlags flags)
@@ -234,12 +268,11 @@ public class Program
         try
         {
             /*
-            This will throw
             Created Instance of QuxDelegate`1[System.Int32] for GenericQux
             Type Arguments: System.Int32
             Target Type: I1
-            Open Generic Method: Void GenericQux[X](X) declared on I1
-            Closed Generic Method: Void GenericQux[Int32](Int32) declared on I1
+            Open Generic Method: Void GenericQux[X](X) declared on I1 is virtual True
+            Closed Generic Method: Void GenericQux[Int32](Int32) declared on I1 is virtual True
             Creating....
             System.NotSupportedException: Specified method is not supported.
                 at System.Delegate.BindToMethodInfo(Object target, IRuntimeMethodInfo method, RuntimeType methodType, DelegateBindingFlags flags)
